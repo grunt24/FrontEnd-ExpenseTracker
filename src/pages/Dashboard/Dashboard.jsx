@@ -29,7 +29,7 @@ const Dashboard = () => {
   return (
     <div>
       <h1>Dashboard</h1>
-      <p>Total Expenses: ${expenseTotalCount}</p>
+      <p>Total Expenses: ₱ {expenseTotalCount}</p>
       <Expense />
     </div>
   );

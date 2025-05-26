@@ -1,0 +1,17 @@
+
+/* ================================ */
+/* NAVBAR */
+
+.nav{
+    background-color: #26a69a;
+}
+
+
+/* ================================ */
+/* SIDER */
+
+.collection .collection-item.active,
+.collection .collection-item.active a {
+  color: white !important;
+  background-color: #26a69a !important; /* optional: make it stand out */
+}

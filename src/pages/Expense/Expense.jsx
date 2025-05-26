@@ -1,172 +1,216 @@
-import { useState } from "react";
-import { Table, Layout, Form, Input, Button, Upload, message, Alert, Select } from "antd";
-import { UploadOutlined } from "@ant-design/icons";
+import React, { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { getExpenses, createExpense } from "../../api/expenseService";
-
-const { Content } = Layout;
-const { Option } = Select;
-
+import moment from "moment";
+import M from "materialize-css";
 const Expense = () => {
-  const [form] = Form.useForm();
-  const queryClient = useQueryClient();
+  const [formData, setFormData] = useState({
+    expenseName: "",
+    expenseDetails: "",
+    cost: "",
+    image: null,
+  });
   const [backendError, setBackendError] = useState(null);
+  const queryClient = useQueryClient();
 
-  const { data: expenses, isLoading, isError } = useQuery({
+  const {
+    data: expenses,
+    isLoading,
+    isError,
+  } = useQuery({
     queryKey: ["expenses"],
     queryFn: getExpenses,
   });
 
-const expenseNames = [...new Set(expenses?.map(expense => expense.expenseName))];
+  const expenseNames = [
+    ...new Set(expenses?.map((expense) => expense.expenseName)),
+  ];
 
   const mutation = useMutation({
     mutationFn: createExpense,
     onSuccess: () => {
-      message.success("Expense created successfully!");
-      form.resetFields();
+      M.toast({ html: "Expense created successfully!", classes: "green" });
+      setFormData({
+        expenseName: "",
+        expenseDetails: "",
+        cost: "",
+        image: null,
+      });
       queryClient.invalidateQueries(["expenses"]);
       setBackendError(null);
     },
     onError: (error) => {
-      if (error.response && error.response.data) {
-        setBackendError(error.response.data.message);
-      } else {
-        setBackendError("Failed to create expense.");
-      }
-      message.error("Failed to create expense");
+      const errorMessage =
+        error.response?.data?.message || "Failed to create expense.";
+      setBackendError(errorMessage);
+      M.toast({ html: "Failed to create expense", classes: "red" });
     },
   });
 
-  const handleSubmit = (values) => {
-    const formData = new FormData();
-    formData.append("ExpenseName", values.expenseName);
-    formData.append("ExpenseDetails", values.expenseDetails);
-    formData.append("Cost", values.cost);
-
-    if (values.image && values.image.length > 0) {
-      formData.append("ExpenseImage", values.image[0].originFileObj);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const form = new FormData();
+    form.append("ExpenseName", formData.expenseName);
+    form.append("ExpenseDetails", formData.expenseDetails);
+    form.append("Cost", formData.cost);
+    if (formData.image) {
+      form.append("ExpenseImage", formData.image);
     }
-
-    mutation.mutate(formData);
+    mutation.mutate(form);
   };
 
-  const columns = [
-    {
-      title: "Image",
-      dataIndex: "imagePath",
-      render: (imagePath) =>
-        imagePath ? (
-          <img
-            width={50}
-            height={50}
-            src={imagePath}
-            alt="Expense"
-            style={{ objectFit: "cover" }}
-          />
-        ) : (
-          "No image"
-        ),
-    },
-    {
-      title: "Name",
-      dataIndex: "expenseName",
-    },
-    {
-      title: "Details",
-      dataIndex: "expenseDetails",
-    },
-    {
-      title: "Cost",
-      dataIndex: "cost",
-      render: (cost) => `₱${cost.toFixed(2)}`,
-    },
-  ];
+  const handleChange = (e) => {
+    const { name, value, files } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === "image" ? files[0] : value,
+    }));
+  };
+
+  useEffect(() => {
+    M.FormSelect.init(document.querySelectorAll("select"));
+  }, [expenseNames]);
 
   if (isLoading) return <div>Loading...</div>;
   if (isError) return <div>Error loading data</div>;
 
   return (
-    <Content>
-      <div className="pageTitle">
-        <h4>Expenses</h4>
-      </div>
+    <div className="container">
+      <h4>Expenses</h4>
 
       {backendError && (
-        <Alert
-          message="Error"
-          description={backendError}
-          type="error"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
+        <div className="card red lighten-2">
+          <div className="card-content white-text">
+            <span className="card-title">Error</span>
+            <p>{backendError}</p>
+          </div>
+        </div>
       )}
 
-      <Form form={form} layout="vertical" onFinish={handleSubmit} style={{ marginBottom: 24 }}>
-        <Form.Item
-          name="expenseName"
-          label="Expense Name"
-          rules={[{ required: true, message: "Please select an expense name" }]}
-        >
-          <Select
-            showSearch
-            placeholder="Select an expense name"
-            optionFilterProp="children"
-            filterOption={(input, option) =>
-              option.children.toLowerCase().includes(input.toLowerCase())
-            }
+      <form onSubmit={handleSubmit}>
+        <div className="input-field">
+          <input
+            type="text"
+            name="expenseName"
+            value={formData.expenseName}
+            onChange={handleChange}
+            list="expense-name-options"
+            required
+          />
+          <label
+            htmlFor="expenseName"
+            className={formData.expenseName ? "active" : ""}
           >
+            Expense Name
+          </label>
+          <datalist id="expense-name-options">
             {expenseNames.map((name) => (
-              <Option key={name} value={name}>
-                {name}
-              </Option>
+              <option key={name} value={name} />
             ))}
-          </Select>
-        </Form.Item>
+          </datalist>
+        </div>
 
-        <Form.Item
-          name="expenseDetails"
-          label="Details"
+        {formData.expenseName === "other" && (
+          <div className="input-field">
+            <input
+              type="text"
+              name="expenseName"
+              value={formData.expenseName}
+              onChange={handleChange}
+              required
+            />
+            <label>New Expense Name</label>
+          </div>
+        )}
+
+        <div className="input-field">
+          <input
+            type="text"
+            name="expenseDetails"
+            value={formData.expenseDetails}
+            onChange={handleChange}
+          />
+          <label>Details</label>
+        </div>
+
+        <div className="input-field">
+          <input
+            type="number"
+            name="cost"
+            value={formData.cost}
+            onChange={handleChange}
+            required
+          />
+          <label>Cost</label>
+        </div>
+
+        <div className="file-field input-field">
+          <div className="btn">
+            <span>Upload Image</span>
+            <input
+              type="file"
+              name="image"
+              onChange={handleChange}
+              accept="image/*"
+            />
+          </div>
+          <div className="file-path-wrapper">
+            <input
+              className="file-path validate"
+              type="text"
+              placeholder="Optional"
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="btn waves-effect waves-light"
+          disabled={mutation.isLoading}
         >
-          <Input />
-        </Form.Item>
-
-        <Form.Item
-          name="cost"
-          label="Cost"
-          rules={[{ required: true, message: "Please enter a cost" }]}
-        >
-          <Input type="number" />
-        </Form.Item>
-
-        <Form.Item
-          name="image"
-          label="Upload or Capture Image (optional)"
-          valuePropName="fileList"
-          getValueFromEvent={(e) => e?.fileList}
-        >
-          <Upload
-            accept="image/*"
-            listType="picture"
-            maxCount={1}
-            beforeUpload={() => false}
-            capture="environment"
-          >
-            <Button icon={<UploadOutlined />}>Capture/Upload</Button>
-          </Upload>
-        </Form.Item>
-
-        <Button type="primary" htmlType="submit" loading={mutation.isLoading}>
           Submit Expense
-        </Button>
-      </Form>
+        </button>
+      </form>
 
-      <Table
-        columns={columns}
-        dataSource={expenses}
-        rowKey="id"
-        scroll={{ x: 800, y: 1000 }}
-      />
-    </Content>
+      <table className="striped responsive-table">
+        <thead>
+          <tr>
+            <th>Image</th>
+            <th>Name</th>
+            <th>Details</th>
+            <th>Cost</th>
+            <th>Date Created</th>
+          </tr>
+        </thead>
+        <tbody>
+          {expenses.map((expense) => (
+            <tr key={expense.id}>
+              <td>
+                {expense.imagePath ? (
+                  <img
+                    src={expense.imagePath}
+                    alt="Expense"
+                    style={{
+                      width: "50px",
+                      height: "50px",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  "No image"
+                )}
+              </td>
+              <td>{expense.expenseName}</td>
+              <td>{expense.expenseDetails}</td>
+              <td>{`₱${expense.cost.toFixed(2)}`}</td>
+              <td>
+                {moment(expense.dateCreated).format("MMMM D, YYYY h:mm A")}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 };
 
