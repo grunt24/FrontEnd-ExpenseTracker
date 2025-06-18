@@ -9,7 +9,7 @@ const PageLayout = () => {
     <div>
       <Navbar />
 
-      <div className="container">
+      <div className="container" style={{width: '90%'}}>
         <div className="row" style={{ marginTop: "20px" }}>
           {/* Main Content */}
           <div className="col s12">

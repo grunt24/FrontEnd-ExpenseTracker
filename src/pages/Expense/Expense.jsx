@@ -1,8 +1,14 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { getExpenses, createExpense } from "../../api/expenseService";
+import {
+  createExpense,
+  getPaginatedExpenses,
+  deleteExpense,
+} from "../../api/expenseService";
 import moment from "moment";
 import M from "materialize-css";
+import { evaluate } from "mathjs";
+
 const Expense = () => {
   const [formData, setFormData] = useState({
     expenseName: "",
@@ -10,21 +16,33 @@ const Expense = () => {
     cost: "",
     image: null,
   });
+
+  const [costInput, setCostInput] = useState("");
+
   const [backendError, setBackendError] = useState(null);
+  const [page, setPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+
   const queryClient = useQueryClient();
 
-  const {
-    data: expenses,
-    isLoading,
-    isError,
-  } = useQuery({
-    queryKey: ["expenses"],
-    queryFn: getExpenses,
+  // Refetch expenses when page or itemsPerPage changes
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["expenses", page, itemsPerPage],
+    queryFn: () => getPaginatedExpenses(page, itemsPerPage),
+    keepPreviousData: true,
   });
 
-  const expenseNames = [
-    ...new Set(expenses?.map((expense) => expense.expenseName)),
-  ];
+  const expenses = useMemo(() => data?.items || [], [data]);
+  const totalCount = data?.totalCount || 0;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
+
+  const expenseNames = useMemo(() => {
+    return [...new Set(expenses.map((expense) => expense.expenseName))];
+  }, [expenses]);
+
+  useEffect(() => {
+    M.FormSelect.init(document.querySelectorAll("select"));
+  }, [itemsPerPage]);
 
   const mutation = useMutation({
     mutationFn: createExpense,
@@ -59,6 +77,18 @@ const Expense = () => {
     mutation.mutate(form);
   };
 
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this expense?")) {
+      try {
+        await deleteExpense(id);
+        M.toast({ html: "Expense deleted successfully!", classes: "green" });
+        queryClient.invalidateQueries(["expenses"]);
+      } catch (error) {
+        M.toast({ html: "Failed to delete expense", classes: "red" });
+      }
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value, files } = e.target;
     setFormData((prev) => ({
@@ -67,16 +97,33 @@ const Expense = () => {
     }));
   };
 
-  useEffect(() => {
-    M.FormSelect.init(document.querySelectorAll("select"));
-  }, [expenseNames]);
+  const handleCostChange = (e) => {
+    const input = e.target.value;
+    setCostInput(input);
+
+    try {
+      const result = evaluate(input);
+      if (!isNaN(result)) {
+        setFormData((prev) => ({
+          ...prev,
+          cost: result,
+        }));
+      }
+    } catch {
+      // Invalid expression; don't update cost
+      setFormData((prev) => ({
+        ...prev,
+        cost: "",
+      }));
+    }
+  };
 
   if (isLoading) return <div>Loading...</div>;
   if (isError) return <div>Error loading data</div>;
 
   return (
-    <div className="container">
-      <h4>Expenses</h4>
+    <div className="container col s12" style={{ marginTop: 50 }}>
+      <h5>Add Expense</h5>
 
       {backendError && (
         <div className="card red lighten-2">
@@ -110,19 +157,6 @@ const Expense = () => {
           </datalist>
         </div>
 
-        {formData.expenseName === "other" && (
-          <div className="input-field">
-            <input
-              type="text"
-              name="expenseName"
-              value={formData.expenseName}
-              onChange={handleChange}
-              required
-            />
-            <label>New Expense Name</label>
-          </div>
-        )}
-
         <div className="input-field">
           <input
             type="text"
@@ -135,13 +169,18 @@ const Expense = () => {
 
         <div className="input-field">
           <input
-            type="number"
-            name="cost"
-            value={formData.cost}
-            onChange={handleChange}
+            type="text"
+            name="costInput"
+            value={costInput}
+            onChange={handleCostChange}
             required
           />
-          <label>Cost</label>
+          <label className={costInput ? "active" : ""}>Cost (Calculator)</label>
+          {formData.cost && !isNaN(formData.cost) && (
+            <span className="helper-text">
+              Evaluated Cost: ₱{parseFloat(formData.cost).toFixed(2)}
+            </span>
+          )}
         </div>
 
         <div className="file-field input-field">
@@ -172,14 +211,24 @@ const Expense = () => {
         </button>
       </form>
 
-      <table className="striped responsive-table">
+      <div
+      // style={{
+
+      // }}
+      ></div>
+
+      <table
+        className="striped highlight centered responsive-table"
+        style={{ marginTop: 50, width: "100%" }}
+      >
         <thead>
-          <tr>
+          <tr style={{ color: "#167168" }}>
             <th>Image</th>
             <th>Name</th>
             <th>Details</th>
             <th>Cost</th>
             <th>Date Created</th>
+            <th>Actions</th> {/* New column for actions */}
           </tr>
         </thead>
         <tbody>
@@ -206,10 +255,39 @@ const Expense = () => {
               <td>
                 {moment(expense.dateCreated).format("MMMM D, YYYY h:mm A")}
               </td>
+              <td>
+                <button
+                  className="btn-small red"
+                  onClick={() => handleDelete(expense.id)}
+                >
+                  <i className="material-icons">delete</i>
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      {/* Pagination Controls */}
+      <div className="center-align" style={{ marginTop: "20px" }}>
+        <button
+          className="btn-small"
+          onClick={() => setPage((prev) => Math.max(prev - 1, 1))}
+          disabled={page === 1}
+        >
+          Previous
+        </button>
+        <span style={{ margin: "0 10px" }}>
+          Page {page} of {totalPages}
+        </span>
+        <button
+          className="btn-small"
+          onClick={() => setPage((prev) => Math.min(prev + 1, totalPages))}
+          disabled={page === totalPages}
+        >
+          Next
+        </button>
+      </div>
     </div>
   );
 };

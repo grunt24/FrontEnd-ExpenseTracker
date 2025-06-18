@@ -1,17 +1,48 @@
-
 /* ================================ */
 /* NAVBAR */
 
-.nav{
+.nav {
     background-color: #26a69a;
 }
-
 
 /* ================================ */
 /* SIDER */
 
 .collection .collection-item.active,
 .collection .collection-item.active a {
-  color: white !important;
-  background-color: #26a69a !important; /* optional: make it stand out */
+    color: white !important;
+    background-color: #26a69a !important;
+    /* optional: make it stand out */
 }
+
+/* ================================ */
+/* FOOTER */
+
+.page-footer {
+    background-color: #26a69a;
+}
+
+
+/* ====================== */
+/* Login Modal */
+/* Add this to your CSS file */
+.ReactModal__Overlay {
+  background-color: rgba(0, 0, 0, 0.5);
+}
+
+.ReactModal__Content {
+  width: 300px;
+  margin: auto;
+  padding: 20px;
+  background: white;
+  border-radius: 10px;
+}
+
+/* ====================== */
+/* DIVIDER */
+.divider{
+  height: 1px;
+  background-color: #9e9e9e;
+  margin: 20px 0;
+}
+
